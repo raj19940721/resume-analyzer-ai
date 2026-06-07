@@ -187,10 +187,11 @@ Return ONLY valid JSON.
     return NextResponse.json({
       result,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       {
-        error: error?.message || String(error),
+        error: message,
       },
       {
         status: 500,

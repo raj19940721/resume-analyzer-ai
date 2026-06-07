@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import jsPDF from "jspdf";
 import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
 
@@ -17,6 +17,13 @@ type Analysis = {
   job_description: string;
 };
 
+type AnalysisResult = {
+  matchScore: number;
+  strengths: string[];
+  missingSkills: string[];
+  suggestions: string[];
+};
+
 export default function Home() {
   const { user } = useUser();
 
@@ -24,7 +31,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(false);
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [history, setHistory] = useState<Analysis[]>([]);
   const [darkMode, setDarkMode] = useState(false);
   const [errors, setErrors] = useState({
@@ -80,7 +87,7 @@ export default function Home() {
         try {
           const errorData = await clone.json();
           errorMessage = errorData?.error || errorMessage;
-        } catch (parseError) {
+        } catch {
           const text = await res.text();
           errorMessage = text || errorMessage;
         }
@@ -92,25 +99,20 @@ export default function Home() {
       let data;
       try {
         data = await res.json();
-      } catch (parseError) {
-        const text = await res.clone().text();
+      } catch {
+        alert("Server returned invalid JSON.");
         return;
       }
 
       setAnalysis(data.result);
     } catch (error) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchHistory();
-    }
-  }, [user]);
-
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     if (!user) return;
 
     const res = await fetch("/api/history", {
@@ -122,9 +124,19 @@ export default function Home() {
     const data = await res.json();
 
     setHistory(data);
-  };
+  }, [user]);
 
-  const loadAnalysis = (item: any) => {
+  useEffect(() => {
+    if (!user) return;
+
+    const loadHistory = async () => {
+      await fetchHistory();
+    };
+
+    void loadHistory();
+  }, [user, fetchHistory]);
+
+  const loadAnalysis = (item: Analysis) => {
     try {
       if (item.ai_feedback.startsWith("{")) {
         const parsed = JSON.parse(item.ai_feedback);
